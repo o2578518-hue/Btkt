@@ -1,0 +1,198 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Google Login | My Website</title>
+
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 20px;
+      font-family: Arial, sans-serif;
+      color: white;
+      background: linear-gradient(135deg, #101827, #284675);
+    }
+
+    .card {
+      width: 100%;
+      max-width: 390px;
+      padding: 30px 24px;
+      text-align: center;
+      background: #18243a;
+      border: 1px solid #425270;
+      border-radius: 20px;
+      box-shadow: 0 15px 45px #0005;
+    }
+
+    h1 { margin-top: 0; }
+    p { color: #d1d9e8; overflow-wrap: anywhere; }
+
+    button {
+      width: 100%;
+      padding: 14px;
+      margin-top: 14px;
+      border: 0;
+      border-radius: 10px;
+      font-weight: bold;
+      font-size: 15px;
+      cursor: pointer;
+    }
+
+    #loginBtn { background: white; color: #202938; }
+    #logoutBtn { background: #dc3545; color: white; }
+    button:disabled { opacity: .6; }
+
+    #profile { display: none; }
+    #avatar {
+      width: 82px;
+      height: 82px;
+      border-radius: 50%;
+      object-fit: cover;
+    }
+
+    #status { font-size: 14px; }
+  </style>
+</head>
+
+<body>
+  <main class="card">
+    <h1>Welcome 👋</h1>
+    <p>Sign in with your Google account</p>
+
+    <button id="loginBtn">Continue with Google</button>
+
+    <section id="profile">
+      <img id="avatar" alt="Profile photo">
+      <h2 id="userName"></h2>
+      <p id="userEmail"></p>
+      <button id="logoutBtn">Logout</button>
+    </section>
+
+    <p id="status" role="status" aria-live="polite">
+      Ready to sign in.
+    </p>
+  </main>
+
+  <script type="module">
+    import { initializeApp } from
+      "https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js";
+
+    import {
+      getAuth,
+      GoogleAuthProvider,
+      signInWithPopup,
+      onAuthStateChanged,
+      signOut
+    } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-auth.js";
+
+    import {
+      getFunctions,
+      httpsCallable
+    } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-functions.js";
+
+    // Replace with your Firebase Web App configuration.
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+      projectId: "YOUR_PROJECT_ID",
+      appId: "YOUR_APP_ID"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const provider = new GoogleAuthProvider();
+
+    const functions = getFunctions(app, "us-central1");
+    const sendLoginNotification =
+      httpsCallable(functions, "sendLoginNotification");
+
+    const loginBtn = document.getElementById("loginBtn");
+    const logoutBtn = document.getElementById("logoutBtn");
+    const profile = document.getElementById("profile");
+    const status = document.getElementById("status");
+    const avatar = document.getElementById("avatar");
+
+    loginBtn.addEventListener("click", async () => {
+      loginBtn.disabled = true;
+      status.textContent = "Connecting to Google...";
+
+      try {
+        const result = await signInWithPopup(auth, provider);
+
+        status.textContent = "Login successful. Sending notification...";
+
+        try {
+          await sendLoginNotification();
+          status.textContent = "Login successful! Notification sent.";
+        } catch (error) {
+          console.error("Notification error:", error.code);
+          status.textContent =
+            "Login successful, but notification could not be sent.";
+        }
+      } catch (error) {
+        console.error("Login error:", error.code);
+
+        const messages = {
+          "auth/popup-closed-by-user": "Login window was closed.",
+          "auth/unauthorized-domain":
+            "Add your Netlify domain in Firebase Authorized domains.",
+          "auth/popup-blocked":
+            "Allow popups and try again.",
+          "auth/network-request-failed":
+            "Check your internet connection."
+        };
+
+        status.textContent =
+          messages[error.code] || "Login failed. Check Firebase settings.";
+      } finally {
+        loginBtn.disabled = false;
+      }
+    });
+
+    onAuthStateChanged(auth, (user) => {
+      if (user) {
+        document.getElementById("userName").textContent =
+          user.displayName || "Google User";
+
+        document.getElementById("userEmail").textContent =
+          user.email || "";
+
+        if (user.photoURL) {
+          avatar.src = user.photoURL;
+          avatar.style.display = "inline-block";
+        } else {
+          avatar.style.display = "none";
+          avatar.removeAttribute("src");
+        }
+
+        profile.style.display = "block";
+        loginBtn.style.display = "none";
+      } else {
+        profile.style.display = "none";
+        loginBtn.style.display = "block";
+        status.textContent = "Please sign in.";
+      }
+    });
+
+    logoutBtn.addEventListener("click", async () => {
+      logoutBtn.disabled = true;
+
+      try {
+        await signOut(auth);
+        status.textContent = "You have logged out.";
+      } catch (error) {
+        status.textContent = "Logout failed. Please try again.";
+      } finally {
+        logoutBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
